@@ -38,7 +38,7 @@ if __name__ == "__main__":
     else:
         model = ResNet.ResNet(50)
     
-    # Print a summary of our custom ViT model using torchinfo (uncomment for actual output)
+    # Print a summary of our custom model using torchinfo (uncomment for actual output)
     summary(model=mobinet,
             input_size=(128, 3,  112, 112), # (batch_size, color_channels, height, width)
             # col_names=["input_size"], # uncomment for smaller output
