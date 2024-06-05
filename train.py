@@ -1,8 +1,11 @@
 from utils import data_setup, engine, save
-from architecture import MobileNetV3, ResNet
+from architecture import Mobilenet, Resnet
+from argparse import ArgumentParser
+import torch
 from torchinfo import summary
+from torchvision import datasets, transforms
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Train classification')
+    parser = ArgumentParser(description='Train classification')
     parser.add_argument('--work-dir', default='models', help='the dir to save logs and models')
     parser.add_argument("--train-folder", default='data/train', type=str)
     parser.add_argument("--valid-folder", default='data/test', type=str)
@@ -14,7 +17,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print(f'Training {} model with hyper-params:'.format(args.architecture))
+    print(f'Training {args.architecture} model with hyper-params:')
+    devices = "cuda" if torch.cuda.is_available() else "cpu"
     train_dir = args.train_folder
     test_dir = args.valid_folder
 
@@ -34,35 +38,35 @@ if __name__ == "__main__":
                                                                                 batch_size=args.batch_size)
 
     if args.architecture == "MobileNetv3":
-        model = MobileNetV3.MobileNetV3('small')
+        model = Mobilenet.MobileNetV3('small')
     else:
-        model = ResNet.ResNet(50)
+        model = Resnet.ResNet(50)
     
     # Print a summary of our custom model using torchinfo (uncomment for actual output)
-    summary(model=mobinet,
+    summary(model=model,
             input_size=(128, 3,  112, 112), # (batch_size, color_channels, height, width)
             # col_names=["input_size"], # uncomment for smaller output
             col_names=["input_size", "output_size", "num_params", "trainable"],
             col_width=20,
-            row_settings=["var_names"]
+            row_settings=["var_names"])
 
     # Setup the loss function and optimizer for multi-class classification
     loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(mobinet.parameters(), lr=args.lr, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
     # Set the seeds
-    set_seeds()
-
+    engine.set_seeds()
+    print(devices)
     # Train the model and save the training results to a dictionary
-    results_mobilenet = engine.train(model=model,
+    results = engine.train(model=model,
                         train_dataloader=train_dataloader,
                         test_dataloader=test_dataloader,
                         optimizer=optimizer,
                         loss_fn=loss_fn,
                         epochs=args.epochs,
-                        device=device)
+                        device=devices)
 
     # Save the model with help from utils.py
-    utils.save_model(model=model,
+    save.save_model(model=model,
                     target_dir=args.work_dir,
                     model_name=args.architecture)
