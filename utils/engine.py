@@ -1,7 +1,7 @@
 import torch 
 from tqdm.auto import tqdm
 from typing import Dict, List, Tuple
-
+from . import save
 
 def set_seeds(seed: int=42):
     """Sets random sets for torch operations.
@@ -131,6 +131,8 @@ def train(model: torch.nn.Module,
           optimizer: torch.optim.Optimizer,
           loss_fn: torch.nn.Module,
           epochs: int,
+          work_dir: str,
+          architecture: str,
           device: torch.device) -> Dict[str, List]:
     """Trains and tests a PyTorch model.
 
@@ -168,6 +170,8 @@ def train(model: torch.nn.Module,
     # Make sure model on target device
     model.to(device)
 
+    best_metric = float('-inf')  # Initialize the best metric value
+
     # Loop through training and testing steps for a number of epochs
     for epoch in tqdm(range(epochs)):
         train_loss, train_acc = train_step(model=model,
@@ -188,7 +192,11 @@ def train(model: torch.nn.Module,
           f"test_loss: {test_loss:.4f} | "
           f"test_acc: {test_acc:.4f}"
         )
-
+        if test_acc > best_metric:
+            best_metric = test_acc
+            # Save the model's state
+            save.save_model(model, work_dir, architecture)
+            print(f'Saved best model with validation accuracy: {best_metric:.4f}')
         # Update results dictionary
         results["train_loss"].append(train_loss)
         results["train_acc"].append(train_acc)

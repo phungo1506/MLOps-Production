@@ -64,9 +64,8 @@ if __name__ == "__main__":
                         optimizer=optimizer,
                         loss_fn=loss_fn,
                         epochs=args.epochs,
+                        work_dir=args.work_dir,
+                        architecture=args.architecture,
                         device=devices)
 
-    # Save the model with help from utils.py
-    save.save_model(model=model,
-                    target_dir=args.work_dir,
-                    model_name=args.architecture + ".pth")
+
