@@ -25,10 +25,10 @@ def save_model(model: torch.nn.Module,
     target_dir_path.mkdir(parents=True,
                         exist_ok=True)
 
-    # Create model save path
-    assert model_name.endswith(".pth") or model_name.endswith(".pt"), "model_name should end with '.pt' or '.pth'"
-    model_save_path = target_dir_path / model_name 
+    # # Create model save path
+    model_save_path = str(target_dir_path) + '/' + model_name + '_best.pth'
+    assert model_save_path.endswith(".pth") or model_save_path.endswith(".pt"), "model_name should end with '.pt' or '.pth'"
 
     # Save the model state_dict()
-    torch.save(model.state_dict(), f'{target_dir}/{model_name}_best.pth')
+    torch.save(model.state_dict(), model_save_path)
     

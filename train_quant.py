@@ -2,10 +2,10 @@ from utils import data_setup, engine, save
 from architecture import Mobilenet, Resnet, Mobilenet_quant
 from argparse import ArgumentParser
 import torch
-from torchinfo import summary
 from torchvision import datasets, transforms
-from torch.ao.quantization import QuantStub, DeQuantStub, get_default_qconfig, prepare_qat, convert
-if __name__ == "__main__":
+from torch.quantization import QuantStub, DeQuantStub, default_qconfig, prepare_qat, convert
+
+def main():
     parser = ArgumentParser(description='Train classification')
     parser.add_argument('--work-dir', default='models', help='the dir to save logs and models')
     parser.add_argument("--train-folder", default='data/train', type=str)
@@ -20,23 +20,22 @@ if __name__ == "__main__":
 
     print(f'Training {args.architecture} model with hyper-params:')
     devices = "cuda" if torch.cuda.is_available() else "cpu"
-    train_dir = args.train_folder
-    test_dir = args.valid_folder
 
-    IMG_SIZE = args.img_size
-    MEANS = (0.46295794, 0.46194877, 0.4847407)
-    STDS = (0.19444681, 0.19439201, 0.19383532)
     # Create transform pipeline manually
     manual_transforms = transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
+        transforms.Resize((args.img_size, args.img_size)),
         transforms.ToTensor(),
-        transforms.Normalize(MEANS, STDS),])
-    
-    # Load train dataset 
-    train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(train_dir=train_dir,
-                                                                                test_dir=test_dir,
-                                                                                transform=manual_transforms, # use manually created transforms
-                                                                                batch_size=args.batch_size)
+        transforms.Normalize((0.46295794, 0.46194877, 0.4847407), (0.19444681, 0.19439201, 0.19383532))
+    ])
+
+    # Load train dataset
+    train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(
+        train_dir=args.train_folder,
+        test_dir=args.valid_folder,
+        transform=manual_transforms,
+        batch_size=args.batch_size
+    )
+
     # Create the model
     if args.architecture == "MobileNetv3":
         model = Mobilenet.MobileNetV3('small')
@@ -45,52 +44,41 @@ if __name__ == "__main__":
     elif args.architecture == "Mobilenet_quanti":
         model = Mobilenet_quant.MobileNetV3('small')
 
-    # Fuse the Conv, BN, and ReLU modules
-    model.conv.c = torch.ao.quantization.fuse_modules(model.conv, ['c', 'bn', 'act'])
-    for block in model.blocks:
-        block.block[0].c = torch.ao.quantization.fuse_modules(block.block[0], ['c', 'bn', 'act'])
-        block.block[1].c = torch.ao.quantization.fuse_modules(block.block[1], ['c', 'bn', 'act'])
-        block.block[3].c = torch.ao.quantization.fuse_modules(block.block[3], ['c', 'bn'])
+    # Move the model to the selected device
+    model.to(devices)
 
-    # Prepare for quantization-aware training
-    model.qconfig = get_default_qconfig('fbgemm')
-    prepare_qat(model, inplace=True)
+    # Specify quantization configuration for QAT
+    quant_config = torch.quantization.get_default_qconfig('fbgemm')
 
-    summary(model=model,
-            input_size=(128, 3,  112, 112), # (batch_size, color_channels, height, width)
-            # col_names=["input_size"], # uncomment for smaller output
-            col_names=["input_size", "output_size", "num_params", "trainable"],
-            col_width=20,
-            row_settings=["var_names"])
+    # Prepare the model for quantization
+    model.qconfig = quant_config
+    q_model = prepare_qat(model, inplace=False)
 
-    # Setup the loss function and optimizer for multi-class classification
+    # Define the loss function and optimizer
     loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+    optimizer = torch.optim.SGD(q_model.parameters(), lr=args.lr, momentum=0.9)
 
     # Set the seeds
     engine.set_seeds()
 
     # Train the model and save the training results to a dictionary
-    results = engine.train(model=model,
-                        train_dataloader=train_dataloader,
-                        test_dataloader=test_dataloader,
-                        optimizer=optimizer,
-                        loss_fn=loss_fn,
-                        epochs=args.epochs,
-                        device=devices)
-    save.save_model(model=model_fp32_prepared,
-                target_dir=args.work_dir,
-                model_name=args.architecture + "_before.pth")
-   
-    # Convert to a quantized model
-    model.eval()
-    model = convert(model, inplace=True)
-    print(f'Check statistics of the various layers')
-    print(model_int8)
-    # Print the weights matrix of the model before quantization
-    # print('Weights before quantization')
-    # print(torch.int_repr(model_quantized.linear1.weight()))
-    # Save the model with help from utils.py
-    save.save_model(model=model,
-                    target_dir=args.work_dir,
-                    model_name=args.architecture + "_after.pth")
+    results = engine.train(
+        model=q_model,
+        train_dataloader=train_dataloader,
+        test_dataloader=test_dataloader,
+        optimizer=optimizer,
+        loss_fn=loss_fn,
+        epochs=args.epochs,
+        work_dir=args.work_dir,
+        architecture=args.architecture,
+        device=devices
+    )
+
+    # Convert the model to quantized form after training
+    quantized_model = convert(q_model.eval(), inplace=False)
+
+    # Save the quantized model
+    save.save_model(quantized_model, args.work_dir, model_name=f"{args.architecture}_quantized.pth")
+
+if __name__ == "__main__":
+    main()
