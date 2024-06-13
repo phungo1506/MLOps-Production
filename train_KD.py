@@ -41,9 +41,9 @@ if __name__ == "__main__":
     model_teacher = Resnet.ResNet50(num_classes=len(class_names))
     model_student = Mobilenet.MobileNetV3(config_name = 'small', num_classes=len(class_names))
     
-    total_params_deep = "{:,}".format(sum(p.numel() for p in nn_deep.parameters()))
+    total_params_deep = "{:,}".format(sum(p.numel() for p in model_teacher.parameters()))
     print(f"Resnet parameters (Teacher): {total_params_deep}")
-    total_params_light = "{:,}".format(sum(p.numel() for p in nn_light.parameters()))
+    total_params_light = "{:,}".format(sum(p.numel() for p in model_student.parameters()))
     print(f"MobileNetV3 parameters (Student): {total_params_light}")
 
     # Training model Teacher
