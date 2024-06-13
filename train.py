@@ -7,20 +7,20 @@ from torchvision import datasets, transforms
 if __name__ == "__main__":
     parser = ArgumentParser(description='Train classification')
     parser.add_argument('--work-dir', default='models', help='the dir to save logs and models')
-    parser.add_argument("--train-folder", default='data/train', type=str)
-    parser.add_argument("--valid-folder", default='data/test', type=str)
+    parser.add_argument("--train_dir", default='data/train', type=str)
+    parser.add_argument("--test_dir", default='data/test', type=str)
     parser.add_argument('--architecture', action='store_true', default='MobileNetv3', help='MobileNetv3, ResNet')
-    parser.add_argument("--batch-size", default=128, type=int)
-    parser.add_argument("--img-size", default=112, type=int)
-    parser.add_argument("--epochs", default=300, type=int)
+    parser.add_argument("--batch_size", default=128, type=int)
+    parser.add_argument("--img_size", default=112, type=int)
+    parser.add_argument("--num_epochs", default=50, type=int)
     parser.add_argument('--lr', default=0.01, type=float)
 
     args = parser.parse_args()
 
     print(f'Training {args.architecture} model with hyper-params:')
     devices = "cuda" if torch.cuda.is_available() else "cpu"
-    train_dir = args.train_folder
-    test_dir = args.valid_folder
+    train_dir = args.train_dir
+    test_dir = args.test_dir
 
     IMG_SIZE = args.img_size
     MEANS = (0.46295794, 0.46194877, 0.4847407)
@@ -35,7 +35,8 @@ if __name__ == "__main__":
     train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(train_dir=train_dir,
                                                                                 test_dir=test_dir,
                                                                                 transform=manual_transforms, # use manually created transforms
-                                                                                batch_size=args.batch_size)
+                                                                                batch_size=args.batch_size,
+                                                                                num_workers=args.num_workers)
 
     if args.architecture == "MobileNetv3":
         model = Mobilenet.MobileNetV3('small')
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     
     # Print a summary of our custom model using torchinfo (uncomment for actual output)
     summary(model=model,
-            input_size=(128, 3,  112, 112), # (batch_size, color_channels, height, width)
+            input_size=(128, 3,  IMG_SIZE, IMG_SIZE), # (batch_size, color_channels, height, width)
             # col_names=["input_size"], # uncomment for smaller output
             col_names=["input_size", "output_size", "num_params", "trainable"],
             col_width=20,
@@ -63,7 +64,7 @@ if __name__ == "__main__":
                         test_dataloader=test_dataloader,
                         optimizer=optimizer,
                         loss_fn=loss_fn,
-                        epochs=args.epochs,
+                        epochs=args.num_epochs,
                         work_dir=args.work_dir,
                         architecture=args.architecture,
                         device=devices)
