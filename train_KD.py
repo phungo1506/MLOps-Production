@@ -13,6 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", default=128, type=int)
     parser.add_argument("--img_size", default=112, type=int)
     parser.add_argument("--num_epochs", default=50, type=int)
+    parser.add_argument("--num_workers", default=4, type=int)
     parser.add_argument('--lr', default=0.01, type=float)
 
     args = parser.parse_args()
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     # Training model Teacher
     # Setup the loss function and optimizer for multi-class classification
     loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+    optimizer = torch.optim.SGD(model_teacher.parameters(), lr=args.lr, momentum=0.9)
 
     # Set the seeds
     engine.set_seeds()
@@ -66,24 +67,31 @@ if __name__ == "__main__":
                                     architecture=args.architecture,
                                     device=devices)
 
-
+    _, test_accuracy_teacher = engine.test_step(model=model_teacher,
+                                                    dataloader=test_dataloader,
+                                                    loss_fn=loss_fn,
+                                                    device=devices)
     # Training model student
     # Set the seeds
     engine.set_seeds()
     # Setup the loss function and optimizer for multi-class classification
     loss_fn_st = torch.nn.CrossEntropyLoss()
-    optimizer_st  = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+    optimizer_st  = torch.optim.SGD(model_student.parameters(), lr=args.lr, momentum=0.9)
     print(f"Training model Student:")
     results_student = engine.train(model=model_student,
                                     train_dataloader=train_dataloader,
                                     test_dataloader=test_dataloader,
                                     optimizer=optimizer_st,
-                                    loss_fn=optimizer_st,
+                                    loss_fn=loss_fn_st,
                                     epochs=args.num_epochs,
                                     work_dir=args.work_dir,
                                     architecture=args.architecture,
                                     device=devices)
-    
+
+    _, test_accuracy_student = engine.test_step(model=model_student,
+                                                dataloader=test_dataloader,
+                                                loss_fn=loss_fn_st,
+                                                device=devices)
 
     print(f"Training Knowledge Distillation:")
     new_model_student = Mobilenet.MobileNetV3(config_name = 'small', num_classes=len(class_names))
@@ -95,13 +103,14 @@ if __name__ == "__main__":
                                                     T=2, 
                                                     soft_target_loss_weight=0.25, 
                                                     ce_loss_weight=0.75, 
-                                                    device=device)
+                                                    device=devices)
 
     _, test_accuracy_light_ce_and_kd = engine.test_step(model=new_model_student,
                                                     dataloader=test_dataloader,
                                                     loss_fn=loss_fn_st,
-                                                    device=device)
+                                                    device=devices)
 
-    print(f"Teacher accuracy: {results_teacher["test_acc"]:.2f}%")
-    print(f"Student accuracy without teacher: {results_student["test_acc"]:.2f}%")
-    print(f"Student accuracy with CE + KD: {test_accuracy_light_ce_and_kd:.2f}%")
+
+    print(f"Teacher accuracy: {test_accuracy_teacher:.2f}%")
+    print(f"Student accuracy without teacher: {test_accuracy_student:.2f}%")
+    print(f"Student accuracy with CE + KD: {test_accuracy_light_ce_and_kd:.4f}")
