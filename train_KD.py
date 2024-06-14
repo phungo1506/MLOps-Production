@@ -2,8 +2,8 @@ from utils import data_setup, engine, save
 from architecture import Mobilenet, Resnet
 from argparse import ArgumentParser
 import torch
-from torchinfo import summary
 from torchvision import datasets, transforms
+
 if __name__ == "__main__":
     parser = ArgumentParser(description='Train classification')
     parser.add_argument('--work-dir', default='models', help='the dir to save logs and models')
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print(f'Training {args.architecture} model with hyper-params:')
-    devices = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     train_dir = args.train_dir
     test_dir = args.test_dir
 
@@ -30,18 +30,19 @@ if __name__ == "__main__":
     manual_transforms = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
-        transforms.Normalize(MEANS, STDS),])
-    
-    # Load train dataset 
-    train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(train_dir=train_dir,
-                                                                                test_dir=test_dir,
-                                                                                transform=manual_transforms, # use manually created transforms
-                                                                                batch_size=args.batch_size,
-                                                                                num_workers=args.num_workers)
+        transforms.Normalize(MEANS, STDS),
+    ])
 
-    model_teacher = Resnet.ResNet50(num_classes=len(class_names))
-    model_student = Mobilenet.MobileNetV3(config_name = 'small', num_classes=len(class_names))
-    
+    # Load train dataset
+    train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(train_dir=train_dir,
+                                                                                   test_dir=test_dir,
+                                                                                   transform=manual_transforms,  # use manually created transforms
+                                                                                   batch_size=args.batch_size,
+                                                                                   num_workers=args.num_workers)
+
+    model_teacher = Resnet.ResNet101(num_classes=len(class_names)).to(device)
+    model_student = Mobilenet.MobileNetV3(config_name='small', num_classes=len(class_names)).to(device)
+
     total_params_deep = "{:,}".format(sum(p.numel() for p in model_teacher.parameters()))
     print(f"Resnet parameters (Teacher): {total_params_deep}")
     total_params_light = "{:,}".format(sum(p.numel() for p in model_student.parameters()))
@@ -50,7 +51,7 @@ if __name__ == "__main__":
     # Training model Teacher
     # Setup the loss function and optimizer for multi-class classification
     loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model_teacher.parameters(), lr=args.lr, momentum=0.9)
+    optimizer = torch.optim.AdamW(model_teacher.parameters(), lr=args.lr, eps=1e-08, weight_decay=0.01)
 
     # Set the seeds
     engine.set_seeds()
@@ -58,60 +59,72 @@ if __name__ == "__main__":
     print(f"Training model Teacher:")
     # Train the model and save the training results to a dictionary
     results_teacher = engine.train(model=model_teacher,
-                                    train_dataloader=train_dataloader,
-                                    test_dataloader=test_dataloader,
-                                    optimizer=optimizer,
-                                    loss_fn=loss_fn,
-                                    epochs=args.num_epochs,
-                                    work_dir=args.work_dir,
-                                    architecture=args.architecture + '_teacher',
-                                    device=devices)
+                                   train_dataloader=train_dataloader,
+                                   test_dataloader=test_dataloader,
+                                   optimizer=optimizer,
+                                   loss_fn=loss_fn,
+                                   epochs=args.num_epochs,
+                                   work_dir=args.work_dir,
+                                   architecture=args.architecture + '_teacher',
+                                   device=device)
 
     _, test_accuracy_teacher = engine.test_step(model=model_teacher,
-                                                    dataloader=test_dataloader,
-                                                    loss_fn=loss_fn,
-                                                    device=devices)
+                                                dataloader=test_dataloader,
+                                                loss_fn=loss_fn,
+                                                device=device)
+
     # Training model student
     # Set the seeds
     engine.set_seeds()
     # Setup the loss function and optimizer for multi-class classification
     loss_fn_st = torch.nn.CrossEntropyLoss()
-    optimizer_st  = torch.optim.SGD(model_student.parameters(), lr=args.lr, momentum=0.9)
+    optimizer_st = torch.optim.AdamW(model_student.parameters(), lr=args.lr, eps=1e-08, weight_decay=0.01)
     print(f"Training model Student:")
     results_student = engine.train(model=model_student,
-                                    train_dataloader=train_dataloader,
-                                    test_dataloader=test_dataloader,
-                                    optimizer=optimizer_st,
-                                    loss_fn=loss_fn_st,
-                                    epochs=args.num_epochs,
-                                    work_dir=args.work_dir,
-                                    architecture=args.architecture + '_student',
-                                    device=devices)
+                                   train_dataloader=train_dataloader,
+                                   test_dataloader=test_dataloader,
+                                   optimizer=optimizer_st,
+                                   loss_fn=loss_fn_st,
+                                   epochs=args.num_epochs,
+                                   work_dir=args.work_dir,
+                                   architecture=args.architecture + '_student',
+                                   device=device)
 
-    _, test_accuracy_student = engine.test_step(model=model_student,
+    best_model_student = Mobilenet.MobileNetV3(config_name='small', num_classes=len(class_names)).to(device)
+    path_student_model = 'models/' + args.architecture + '_student_best.pth'
+    best_model_student.load_state_dict(torch.load(path_student_model))
+    _, test_accuracy_student = engine.test_step(model=best_model_student,
                                                 dataloader=test_dataloader,
                                                 loss_fn=loss_fn_st,
-                                                device=devices)
+                                                device=device)
 
     print(f"Training Knowledge Distillation:")
-    new_model_student = Mobilenet.MobileNetV3(config_name = 'small', num_classes=len(class_names))
-    results_kd = engine.train_knowledge_distillation(teacher=model_teacher, 
-                                                    student=new_model_student, 
-                                                    train_loader=train_dataloader, 
-                                                    epochs=args.num_epochs, 
-                                                    learning_rate=args.lr, 
-                                                    T=2, 
-                                                    soft_target_loss_weight=0.25, 
-                                                    ce_loss_weight=0.75,
-                                                    work_dir=args.work_dir,
-                                                    architecture=args.architecture + '_KD', 
-                                                    device=devices)
+    best_model_teacher = Resnet.ResNet101(num_classes=len(class_names)).to(device)
+    path_teacher_model = 'models/' + args.architecture + '_teacher_best.pth'
+    print(path_teacher_model)
+    best_model_teacher.load_state_dict(torch.load(path_teacher_model))
+    new_model_student = Mobilenet.MobileNetV3(config_name='small', num_classes=len(class_names)).to(device)
+    results_kd = engine.train_knowledge_distillation(teacher=best_model_teacher,
+                                                     student=new_model_student,
+                                                     train_loader=train_dataloader,
+                                                     test_dataloader=test_dataloader,
+                                                     epochs=args.num_epochs,
+                                                     learning_rate=0.0001,
+                                                     T=2,
+                                                     soft_target_loss_weight=0.25,
+                                                     ce_loss_weight=0.75,
+                                                     work_dir=args.work_dir,
+                                                     architecture=args.architecture,
+                                                     device=device)
 
-    _, test_accuracy_light_ce_and_kd = engine.test_step(model=new_model_student,
-                                                    dataloader=test_dataloader,
-                                                    loss_fn=loss_fn_st,
-                                                    device=devices)
-
+    best_model_KD = Mobilenet.MobileNetV3(config_name='small', num_classes=len(class_names)).to(device)
+    path_KD_model = 'models/' + args.architecture + '_best.pth'
+    best_model_KD.load_state_dict(torch.load(path_KD_model))
+    print(path_KD_model)
+    _, test_accuracy_light_ce_and_kd = engine.test_step(model=best_model_KD,
+                                                        dataloader=test_dataloader,
+                                                        loss_fn=loss_fn_st,
+                                                        device=device)
 
     print(f"Teacher accuracy: {test_accuracy_teacher:.4f}")
     print(f"Student accuracy without teacher: {test_accuracy_student:.4f}")

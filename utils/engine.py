@@ -206,7 +206,8 @@ def train(model: torch.nn.Module,
    
 def train_knowledge_distillation(teacher: torch.nn.Module, 
                                  student: torch.nn.Module, 
-                                 train_loader: torch.utils.data.DataLoader, 
+                                 train_loader: torch.utils.data.DataLoader,
+                                 test_dataloader: torch.utils.data.DataLoader,  
                                  epochs: int, 
                                  learning_rate: float, 
                                  T: float, 
@@ -243,7 +244,7 @@ def train_knowledge_distillation(teacher: torch.nn.Module,
 
     # Define the loss function and optimizer
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(student.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(student.parameters(), lr=learning_rate, eps=1e-08, weight_decay=0.01)
 
     for epoch in tqdm(range(epochs)):
         total_loss = 0
@@ -284,11 +285,17 @@ def train_knowledge_distillation(teacher: torch.nn.Module,
 
         avg_loss = total_loss / len(train_loader)
         accuracy = correct / total
-        if accuracy > best_metric:
-          best_metric = accuracy
+        test_loss, test_acc = test_step(model=student,
+                                        dataloader=test_dataloader,
+                                        loss_fn=criterion,
+                                        device=device)
+        print(f'Epoch [{epoch + 1}/{epochs}] | Train Loss: {avg_loss:.4f}, Train Accuracy: {accuracy:.4f} | Test Loss: {test_loss:.4f}  | Test Accuracy: {test_acc:.4f}')
+        
+        if test_acc > best_metric:
+          best_metric = test_acc
           # Save the model's state
           save.save_model(student, work_dir, architecture)
           print(f'Saved best model with validation accuracy: {best_metric:.4f}')
-        print(f'Epoch [{epoch + 1}/{epochs}], Loss: {avg_loss:.4f}, Train Accuracy: {accuracy:.4f}')
+        
 
     print('Training complete')
