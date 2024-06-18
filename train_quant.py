@@ -62,6 +62,7 @@ if __name__ == "__main__":
 
     # Set the seeds
     engine_quant.set_seeds()
+
     # Train the model and save the training results to a dictionary
     results = engine_quant.train(model=model,
                         train_dataloader=train_dataloader,
@@ -87,9 +88,9 @@ if __name__ == "__main__":
     }
     # Assuming resnet expects an input tensor of shape [1, 3, 224, 224] with float32 dtype
     model_prepared = prepare_fx(model, qconfig_dict, example_inputs=example_inputs)  # Pass example_inputs to prepare_fx
-    dynamic_resnet = convert_fx(model_prepared)
+    dynamic_model = convert_fx(model_prepared)
     print("MobileNetv3 Dynamic-Quant Profile:")
-    engine_quant.profile(dynamic_resnet, test_dataloader, loss_fn, 'cpu')
+    engine_quant.profile(dynamic_model, test_dataloader, loss_fn, 'cpu')
 
     # Try Static Quantization
     static_qconfig = torch.quantization.get_default_qconfig('fbgemm')
@@ -98,5 +99,46 @@ if __name__ == "__main__":
         "": static_qconfig,
     }
     mp = prepare_fx(model, qconfig_dict, example_inputs=example_inputs)
-    mc = convert_fx(mp)
-    engine_quant.profile(mc, test_dataloader, loss_fn, 'cpu')
+    static_model = convert_fx(mp)
+    print("MobileNetv3 Static-Quant Profile:")
+    engine_quant.profile(static_model, test_dataloader, loss_fn, 'cpu')
+
+    # Sensitivity Analysis - Which quantized layers affect accuracy the most?
+    snrd = engine_quant.compare_model_weights(model, static_model)
+    print("Layer-by-layer comparison of model weights")
+    print(snrd)
+
+    sensitive_layers = engine_quant.topk_sensitive_layers(snrd, 5).keys()
+    print(sensitive_layers)   
+    qconfig_dict = {
+    # Global Config
+    "": static_qconfig,
+
+    # Disable for sensitive modules
+    "module_name": [(m, None) for m in sensitive_layers],
+    }
+    mpl = prepare_fx(model, qconfig_dict, example_inputs=example_inputs)
+    sel_static_model = convert_fx(mpl)
+    print("MobileNetv3 Selective Static Quantization Profile:")
+    engine_quant.profile(sel_static_model, test_dataloader, loss_fn, 'cpu')
+
+
+
+    qat_qconfig = torch.quantization.get_default_qat_qconfig('fbgemm')
+    qconfig_dict = {
+        # Global Config
+        "": qat_qconfig,
+    }
+    qat__model_mc = engine_quant.qat__model(model=model,
+                                            qconfig = qconfig_dict,
+                                            example_inputs=example_inputs,
+                                            train_dataloader=train_dataloader,
+                                            test_dataloader=test_dataloader,
+                                            optimizer=optimizer,
+                                            loss_fn=loss_fn,
+                                            num_epochs=args.num_epochs,
+                                            work_dir=args.work_dir,
+                                            architecture=args.architecture,
+                                            device=devices)
+    print("MobileNetv3 Quantization-Aware Training Profile:")
+    engine_quant.profile(qat__model_mc, test_dataloader, loss_fn, 'cpu')
