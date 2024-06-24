@@ -1,4 +1,4 @@
-from utils import data_setup, engine_quant, save
+from utils import data_setup, engine_quant, onnx, save
 from architecture import Mobilenet, Resnet, Efficientnet
 from argparse import ArgumentParser
 import torch
@@ -74,6 +74,7 @@ if __name__ == "__main__":
                         architecture=args.architecture,
                         device=devices)
 
+    print("="*20)
     print("MobileNetv3 Profile:")
     engine_quant.profile(model, test_dataloader, loss_fn, 'cpu')
     example_inputs, classes = next(iter(test_dataloader))  
@@ -89,6 +90,7 @@ if __name__ == "__main__":
     # Assuming resnet expects an input tensor of shape [1, 3, 224, 224] with float32 dtype
     model_prepared = prepare_fx(model, qconfig_dict, example_inputs=example_inputs)  # Pass example_inputs to prepare_fx
     dynamic_model = convert_fx(model_prepared)
+    print("="*20)
     print("MobileNetv3 Dynamic-Quant Profile:")
     engine_quant.profile(dynamic_model, test_dataloader, loss_fn, 'cpu')
 
@@ -100,11 +102,13 @@ if __name__ == "__main__":
     }
     mp = prepare_fx(model, qconfig_dict, example_inputs=example_inputs)
     static_model = convert_fx(mp)
+    print("="*20)
     print("MobileNetv3 Static-Quant Profile:")
     engine_quant.profile(static_model, test_dataloader, loss_fn, 'cpu')
 
     # Sensitivity Analysis - Which quantized layers affect accuracy the most?
     snrd = engine_quant.compare_model_weights(model, static_model)
+    print("="*20)
     print("Layer-by-layer comparison of model weights")
     print(snrd)
 
@@ -119,6 +123,7 @@ if __name__ == "__main__":
     }
     mpl = prepare_fx(model, qconfig_dict, example_inputs=example_inputs)
     sel_static_model = convert_fx(mpl)
+    print("="*20)
     print("MobileNetv3 Selective Static Quantization Profile:")
     engine_quant.profile(sel_static_model, test_dataloader, loss_fn, 'cpu')
 
@@ -138,7 +143,23 @@ if __name__ == "__main__":
                                             loss_fn=loss_fn,
                                             num_epochs=args.num_epochs,
                                             work_dir=args.work_dir,
-                                            architecture=args.architecture,
+                                            architecture=args.architecture + "_QAT",
                                             device=devices)
+    print("="*20)
     print("MobileNetv3 Quantization-Aware Training Profile:")
-    engine_quant.profile(qat__model_mc, test_dataloader, loss_fn, 'cpu')
+    engine_quant.profile(qat__model_mc, test_dataloader, loss_fn, 'cpu')    
+
+    print("="*20)
+    print("Export model Quantization-Aware Training to ONNX:")
+    # Exporting the final quantized model to ONNX
+    
+    onnx_file_path = f"{args.work_dir}/{args.architecture}_quantized.onnx"
+    onnx.export_to_onnx(qat__model_mc, example_inputs, onnx_file_path)
+    
+    # Assuming the ONNX model is defined and loaded elsewhere
+    onnx_model_path = "models/" + args.architecture + "_QAT_best.pth"
+    onnx_model = onnx.load_onnx_model(onnx_model_path)
+
+    # Evaluate ONNX model
+    onnx_accuracy, onnx_total_inference_time = onnx.evaluate_onnx_model(onnx_model, test_dataloader, 'cpu')
+    print(f"Test Accuracy (ONNX): {onnx_accuracy:.2f}%, Total Inference Time (ONNX): {onnx_total_inference_time:.2f} seconds")
