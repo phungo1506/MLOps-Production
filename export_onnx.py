@@ -79,7 +79,7 @@ if __name__ == "__main__":
     model.to('cpu')
 
     print("="*20)
-    print("Export model Quantization-Aware Training to ONNX:")
+    print("Export model to ONNX:")
     # Exporting the final quantized model to ONNX
     
     onnx_file_path = f"{args.work_dir}/{args.architecture}.onnx"
