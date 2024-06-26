@@ -54,7 +54,7 @@ def train_step(model: torch.nn.Module,
     for batch, (X, y) in enumerate(dataloader):
         # Send data to target device
         X, y = X.to(device), y.to(device)
-
+  
         # 1. Forward pass
         y_pred = model(X)
 
@@ -131,7 +131,7 @@ def test_step(model: torch.nn.Module,
 
     # Adjust metrics to get average loss and accuracy per batch 
     test_loss = test_loss / len(dataloader)
-    test_acc = test_acc / len(dataloader)
+    test_acc = test_acc / len(dataloader) * 100
 
     return test_loss, test_acc, elapsed
 
@@ -200,7 +200,7 @@ def train(model: torch.nn.Module,
           f"train_loss: {train_loss:.4f} | "
           f"train_acc: {train_acc:.4f} | "
           f"test_loss: {test_loss:.4f} | "
-          f"test_acc: {test_acc:.4f} | "
+          f"test_acc: {test_acc:.2f} | "
           f"time_infer: {time_infer:.4f}"
         )
         if test_acc > best_metric:
@@ -260,7 +260,7 @@ def profile(model, dataloader, loss_fn, device):
     print("="*20)
      # Evaluate PyTorch model
     test_loss, test_acc, pytorch_inference_time = test_step(model, dataloader, loss_fn, device)
-    print(f"Test Loss (PyTorch): {test_loss:.4f}, Test Accuracy (PyTorch): {test_acc:.4f}, Inference Time (PyTorch): {pytorch_inference_time:.2f} seconds")
+    print(f"Test Loss (PyTorch): {test_loss:.4f}, Test Accuracy (PyTorch): {test_acc:.2f}, Inference Time (PyTorch): {pytorch_inference_time:.2f} seconds")
 
 def SNR(x, y):
     # Higher is better
