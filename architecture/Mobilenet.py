@@ -122,6 +122,23 @@ class MobileNetV3(nn.Module):
                 [5, 960, 160, 160, True, HE, 1]
         ]
 
+        small_KD = [
+                [3, 16, 16, 16, True, RE, 2],
+                [3, 72, 16, 48, False, RE, 2], 
+                # [3, 88, 24, 24, False, RE, 1], #2
+                # [5, 96, 24, 40, True, HE, 2], #2
+                # [5, 240, 40, 40, True, HE, 1], #1
+                # [5, 240, 40, 40, True, HE, 1], #1
+                [5, 120, 48, 96, True, HE, 1],
+                # [5, 144, 48, 96, True, HE, 2],
+                # [5, 144, 96, 96, True, HE, 1],
+                # [5, 120, 40, 48, True, HE, 1],
+                # [5, 144, 48, 48, True, HE, 1], #1
+                # [5, 288, 48, 96, True, HE, 2],
+                # [5, 576, 96, 96, True, HE, 1], #1
+                # [5, 576, 96, 96, True, HE, 1]
+        ]
+        
         small = [
                 [3, 16, 16, 16, True, RE, 2],
                 [3, 72, 16, 24, False, RE, 2],
@@ -135,6 +152,6 @@ class MobileNetV3(nn.Module):
                 [5, 576, 96, 96, True, HE, 1],
                 [5, 576, 96, 96, True, HE, 1]
         ]
-
         if name == "large": return large
         if name == "small": return small
+        if name == "small_KD": return small_KD
