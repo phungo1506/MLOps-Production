@@ -1,0 +1,9 @@
+torch
+torchvision
+torchinfo
+onnx
+onnxruntime
+tensorrt
+pycuda
+numpy
+tqdm
