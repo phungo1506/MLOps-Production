@@ -2,6 +2,11 @@ import torch
 from tqdm.auto import tqdm
 from typing import Dict, List, Tuple
 from . import save
+import time
+import os
+import tempfile
+import torch.quantization._numeric_suite as ns
+from torch.quantization.quantize_fx import prepare_qat_fx, convert_fx
 
 def set_seeds(seed: int=42):
     """Sets random sets for torch operations.
@@ -49,7 +54,7 @@ def train_step(model: torch.nn.Module,
     for batch, (X, y) in enumerate(dataloader):
         # Send data to target device
         X, y = X.to(device), y.to(device)
-
+  
         # 1. Forward pass
         y_pred = model(X)
 
@@ -78,7 +83,7 @@ def train_step(model: torch.nn.Module,
 def test_step(model: torch.nn.Module, 
               dataloader: torch.utils.data.DataLoader, 
               loss_fn: torch.nn.Module,
-              device: torch.device) -> Tuple[float, float]:
+              device: torch.device) -> Tuple[float, float, float]:
     """Tests a PyTorch model for a single epoch.
 
     Turns a target PyTorch model to "eval" mode and then performs
@@ -91,16 +96,18 @@ def test_step(model: torch.nn.Module,
     device: A target device to compute on (e.g. "cuda" or "cpu").
 
     Returns:
-    A tuple of testing loss and testing accuracy metrics.
-    In the form (test_loss, test_accuracy). For example:
+    A tuple of testing loss, testing accuracy metrics, and inference time.
+    In the form (test_loss, test_accuracy, elapsed_time). For example:
 
-    (0.0223, 0.8985)
+    (0.0223, 0.8985, 120.0)
     """
     # Put model in eval mode
+    model.to(device)
     model.eval() 
 
     # Setup test loss and test accuracy values
     test_loss, test_acc = 0, 0
+    t0 = time.time()
 
     # Turn on inference context manager
     with torch.inference_mode():
@@ -118,12 +125,15 @@ def test_step(model: torch.nn.Module,
 
             # Calculate and accumulate accuracy
             test_pred_labels = test_pred_logits.argmax(dim=1)
-            test_acc += ((test_pred_labels == y).sum().item()/len(test_pred_labels))
+            test_acc += ((test_pred_labels == y).sum().item() / len(test_pred_labels))
+
+    elapsed = time.time() - t0
 
     # Adjust metrics to get average loss and accuracy per batch 
     test_loss = test_loss / len(dataloader)
-    test_acc = test_acc / len(dataloader)
-    return test_loss, test_acc
+    test_acc = test_acc / len(dataloader) * 100
+
+    return test_loss, test_acc, elapsed
 
 def train(model: torch.nn.Module, 
           train_dataloader: torch.utils.data.DataLoader, 
@@ -179,7 +189,7 @@ def train(model: torch.nn.Module,
                                           loss_fn=loss_fn,
                                           optimizer=optimizer,
                                           device=device)
-        test_loss, test_acc = test_step(model=model,
+        test_loss, test_acc, time_infer = test_step(model=model,
           dataloader=test_dataloader,
           loss_fn=loss_fn,
           device=device)
@@ -190,7 +200,8 @@ def train(model: torch.nn.Module,
           f"train_loss: {train_loss:.4f} | "
           f"train_acc: {train_acc:.4f} | "
           f"test_loss: {test_loss:.4f} | "
-          f"test_acc: {test_acc:.4f}"
+          f"test_acc: {test_acc:.2f} | "
+          f"time_infer: {time_infer:.4f}"
         )
         if test_acc > best_metric:
             best_metric = test_acc
@@ -285,11 +296,11 @@ def train_knowledge_distillation(teacher: torch.nn.Module,
 
         avg_loss = total_loss / len(train_loader)
         accuracy = correct / total
-        test_loss, test_acc = test_step(model=student,
+        test_loss, test_acc, time_infer = test_step(model=student,
                                         dataloader=test_dataloader,
                                         loss_fn=criterion,
                                         device=device)
-        print(f'Epoch [{epoch + 1}/{epochs}] | Train Loss: {avg_loss:.4f}, Train Accuracy: {accuracy:.4f} | Test Loss: {test_loss:.4f}  | Test Accuracy: {test_acc:.4f}')
+        print(f'Epoch [{epoch + 1}/{epochs}] | Train Loss: {avg_loss:.4f}, Train Accuracy: {accuracy:.4f} | Test Loss: {test_loss:.4f}  | Test Accuracy: {test_acc:.4f} | "Time_Infer: {time_infer:.4f}"')
         
         if test_acc > best_metric:
           best_metric = test_acc
