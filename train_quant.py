@@ -1,5 +1,5 @@
-from utils import data_setup, engine_quant, onnx, save
-from architecture import Mobilenet, Resnet, Efficientnet
+from utils import data_setup, engine_quant, onnx_engine, save
+from architecture import Mobilenet, Resnet
 from argparse import ArgumentParser
 import torch
 from torchinfo import summary
@@ -13,9 +13,10 @@ if __name__ == "__main__":
     parser.add_argument("--test_dir", default='data/test', type=str)
     parser.add_argument('--architecture', default='MobileNetv3', type=str)
     parser.add_argument("--batch_size", default=128, type=int)
-    parser.add_argument("--img_size", default=112, type=int)
+    parser.add_argument("--img_size", default=224, type=int)
     parser.add_argument("--num_epochs", default=50, type=int)
     parser.add_argument("--num_workers", default=4, type=int)
+    parser.add_argument("--path", default='models/MobileNetv3_best.pth', type=str)
     parser.add_argument('--lr', default=0.01, type=float)
 
     args = parser.parse_args()
@@ -24,7 +25,7 @@ if __name__ == "__main__":
     devices = "cuda" if torch.cuda.is_available() else "cpu"
     train_dir = args.train_dir
     test_dir = args.test_dir
-
+    print(devices)
     IMG_SIZE = args.img_size
     MEANS = (0.46295794, 0.46194877, 0.4847407)
     STDS = (0.19444681, 0.19439201, 0.19383532)
@@ -40,14 +41,19 @@ if __name__ == "__main__":
                                                                                 transform=manual_transforms, # use manually created transforms
                                                                                 batch_size=args.batch_size,
                                                                                 num_workers=args.num_workers)
-
     if args.architecture == "MobileNetv3":
         model = Mobilenet.MobileNetV3(config_name='small', num_classes=len(class_names))
-    if args.architecture == "EfficientNet":
-        model = Efficientnet.EfficientNet(version='b1', num_classes=len(class_names))
+        model_best = Mobilenet.MobileNetV3(config_name='small', num_classes=len(class_names))
     if args.architecture == "Resnet":
         model = Resnet.ResNet50(num_classes=len(class_names))
-    
+        model_best = Resnet.ResNet50(num_classes=len(class_names))
+
+    # Setup the loss function and optimizer for multi-class classification
+    loss_fn = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+
+    model.load_state_dict(torch.load(args.path))
+
     # Print a summary of our custom model using torchinfo (uncomment for actual output)
     summary(model=model,
             input_size=(128, 3,  IMG_SIZE, IMG_SIZE), # (batch_size, color_channels, height, width)
@@ -56,27 +62,12 @@ if __name__ == "__main__":
             col_width=20,
             row_settings=["var_names"])
 
-    # Setup the loss function and optimizer for multi-class classification
-    loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
-
-    # Set the seeds
-    engine_quant.set_seeds()
-
-    # Train the model and save the training results to a dictionary
-    results = engine_quant.train(model=model,
-                        train_dataloader=train_dataloader,
-                        test_dataloader=test_dataloader,
-                        optimizer=optimizer,
-                        loss_fn=loss_fn,
-                        epochs=args.num_epochs,
-                        work_dir=args.work_dir,
-                        architecture=args.architecture,
-                        device=devices)
 
     print("="*20)
     print("MobileNetv3 Profile:")
     engine_quant.profile(model, test_dataloader, loss_fn, 'cpu')
+
+    
     example_inputs, classes = next(iter(test_dataloader))  
     model.eval()  # Set the model to evaluation mode
     model.to('cpu')
@@ -147,19 +138,7 @@ if __name__ == "__main__":
                                             device=devices)
     print("="*20)
     print("MobileNetv3 Quantization-Aware Training Profile:")
-    engine_quant.profile(qat__model_mc, test_dataloader, loss_fn, 'cpu')    
-
-    print("="*20)
-    print("Export model Quantization-Aware Training to ONNX:")
-    # Exporting the final quantized model to ONNX
-    
-    onnx_file_path = f"{args.work_dir}/{args.architecture}_quantized.onnx"
-    onnx.export_to_onnx(qat__model_mc, example_inputs, onnx_file_path)
-    
-    # Assuming the ONNX model is defined and loaded elsewhere
-    onnx_model_path = "models/" + args.architecture + "_QAT_best.pth"
-    onnx_model = onnx.load_onnx_model(onnx_model_path)
-
-    # Evaluate ONNX model
-    onnx_accuracy, onnx_total_inference_time = onnx.evaluate_onnx_model(onnx_model, test_dataloader, 'cpu')
-    print(f"Test Accuracy (ONNX): {onnx_accuracy:.2f}%, Total Inference Time (ONNX): {onnx_total_inference_time:.2f} seconds")
+    path_model_quant_best = 'models/' + args.architecture + "_QAT_best.pth"
+    state_dict = torch.load(path_model_quant_best,map_location=torch.device(devices))
+    model_best.load_state_dict(state_dict, strict=False)
+    engine_quant.profile(qat__model_mc, test_dataloader, loss_fn, 'cpu')  
