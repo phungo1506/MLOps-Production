@@ -141,4 +141,4 @@ if __name__ == "__main__":
     path_model_quant_best = 'models/' + args.architecture + "_QAT_best.pth"
     state_dict = torch.load(path_model_quant_best,map_location=torch.device(devices))
     model_best.load_state_dict(state_dict, strict=False)
-    engine_quant.profile(qat__model_mc, test_dataloader, loss_fn, 'cpu')  
+    engine_quant.profile(model_best, test_dataloader, loss_fn, 'cpu')  
