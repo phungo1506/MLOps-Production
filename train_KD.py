@@ -1,5 +1,5 @@
 from utils import data_setup, engine, engine_quant, save
-from architecture import Mobilenet, Resnet
+from architecture import Mobilenet, Resnet, Efficientnet
 from argparse import ArgumentParser
 import torch
 from torchvision import datasets, transforms
@@ -42,12 +42,13 @@ if __name__ == "__main__":
                                                                                    num_workers=args.num_workers)
 
     # model_teacher = Resnet.ResNet101(num_classes=len(class_names)).to(device)
-    model_teacher = Mobilenet.MobileNetV3(config_name='large', num_classes=len(class_names)).to(device)
+    # model_teacher = Mobilenet.MobileNetV3(config_name='large', num_classes=len(class_names)).to(device)
+    model_teacher = Efficientnet.EfficientNet(version='b7', num_classes=len(class_names)).to(device)
     model_student = Mobilenet.MobileNetV3(config_name='small_KD', num_classes=len(class_names)).to(device)
 
     total_params_deep = "{:,}".format(sum(p.numel() for p in model_teacher.parameters()))
     # print(f"Resnet parameters (Teacher): {total_params_deep}")
-    print(f"MobileNetV3 Large parameters (Teacher): {total_params_deep}")
+    print(f"Efficientnet parameters (Teacher): {total_params_deep}")
     total_params_light = "{:,}".format(sum(p.numel() for p in model_student.parameters()))
     print(f"MobileNetV3 parameters (Student): {total_params_light}")
 
@@ -126,7 +127,8 @@ if __name__ == "__main__":
 
     print("="*50)
     print(f"Training Knowledge Distillation:")
-    best_model_teacher = Mobilenet.MobileNetV3(config_name='large', num_classes=len(class_names)).to(device)
+    # best_model_teacher = Mobilenet.MobileNetV3(config_name='large', num_classes=len(class_names)).to(device)
+    best_model_teacher = Efficientnet.EfficientNet(version='b7', num_classes=len(class_names)).to(device)
     # best_model_teacher = Resnet.ResNet101(num_classes=len(class_names)).to(device)
     path_teacher_model = 'models/' + args.architecture + '_teacher_best.pth'
     print(path_teacher_model)
