@@ -1,4 +1,4 @@
-from utils import data_setup, engine_quant, save
+from utils import data_setup, engine, engine_quant, save
 from architecture import Mobilenet, Resnet
 from argparse import ArgumentParser
 import torch
@@ -60,10 +60,10 @@ if __name__ == "__main__":
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
     # Set the seeds
-    engine_quant.set_seeds()
+    engine.set_seeds()
     print(devices)
     # Train the model and save the training results to a dictionary
-    results = engine_quant.train(model=model,
+    results = engine.train(model=model,
                         train_dataloader=train_dataloader,
                         test_dataloader=test_dataloader,
                         optimizer=optimizer,
