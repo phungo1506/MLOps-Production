@@ -7,6 +7,7 @@ import os
 import tempfile
 import torch.quantization._numeric_suite as ns
 from torch.quantization.quantize_fx import prepare_qat_fx, convert_fx
+import copy
 
 def set_seeds(seed: int=42):
     """Sets random sets for torch operations.
@@ -46,7 +47,7 @@ def train_step(model: torch.nn.Module,
     """
     # Put model in train mode
     model.train()
-
+    # model.to(device)
     # Setup train loss and train accuracy values
     train_loss, train_acc = 0, 0
 
@@ -143,7 +144,9 @@ def train(model: torch.nn.Module,
           epochs: int,
           work_dir: str,
           architecture: str,
-          device: torch.device) -> Dict[str, List]:
+          device: torch.device,
+          qconfig_mapping,
+          example_inputs) -> Dict[str, List]:
     """Trains and tests a PyTorch model.
 
     Passes a target PyTorch models through train_step() and test_step()
@@ -190,9 +193,9 @@ def train(model: torch.nn.Module,
                                           optimizer=optimizer,
                                           device=device)
         test_loss, test_acc, time_infer = test_step(model=model,
-          dataloader=test_dataloader,
-          loss_fn=loss_fn,
-          device=device)
+                                                    dataloader=test_dataloader,
+                                                    loss_fn=loss_fn,
+                                                    device=device)
 
         # Print out what's happening
         print(
@@ -203,11 +206,22 @@ def train(model: torch.nn.Module,
           f"test_acc: {test_acc:.2f} | "
           f"time_infer: {time_infer:.4f}"
         )
+           # # model.eval()  # Set the model to evaluation mode
+    # # model.to('cpu')
+    # mp.eval()
+    # mp = mp.cpu()
         if test_acc > best_metric:
             best_metric = test_acc
+            model_to_quantize = copy.deepcopy(model)
+            model_to_quantize.eval()
+            model_to_quantize = model.cpu()
+            model_prepared = torch.quantization.quantize_fx.prepare_qat_fx(model_to_quantize, qconfig_mapping, example_inputs)
+            model_quantized = torch.quantization.quantize_fx.convert_fx(model_prepared)
+
             # Save the model's state
-            save.save_model(model, work_dir, architecture)
+            save.save_model(model_quantized, work_dir, architecture)
             print(f'Saved best model with validation accuracy: {best_metric:.4f}')
+            model.to(device)
         # Update results dictionary
         results["train_loss"].append(train_loss)
         results["train_acc"].append(train_acc)
@@ -281,27 +295,3 @@ def topk_sensitive_layers(snr_dict, k):
     snr_dict = dict(sorted(snr_dict.items(), key=lambda x:x[1]))
     snr_dict = {k.replace('.weight', ''):v for k,v in list(snr_dict.items())[:k]}
     return snr_dict
-
-def qat__model(model, qconfig, example_inputs, train_dataloader, test_dataloader, optimizer, loss_fn, num_epochs, work_dir, architecture, device):
-    model.train()
-    model.to(device)
-    mp = prepare_qat_fx(model, qconfig, example_inputs)
-
-    # training loop
-    trainer = train(model=mp,
-                    train_dataloader=train_dataloader,
-                    test_dataloader=test_dataloader,
-                    optimizer=optimizer,
-                    loss_fn=loss_fn,
-                    epochs=num_epochs,
-                    work_dir=work_dir,
-                    architecture=architecture,
-                    device=device)
-
-    # model.eval()  # Set the model to evaluation mode
-    # model.to('cpu')
-    mp.eval()
-    mp = mp.cpu()
-
-    mc = convert_fx(mp)
-    return mc
