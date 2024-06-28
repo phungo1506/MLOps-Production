@@ -30,7 +30,7 @@ Training and testing on GPU A100
 
 ## Quantization
 | Model | Quantized | Accuracy | Time Inference | Model Size |
-|:---------------|:----:|:---:|:--:|:--:|:--:|
+|:---------------|:---:|:--:|:--:|:--:|
 | MobileNetv3 (Small)|    -   |     49.81%     | 52.17s  |    6.2MB     |
 | MobileNetv3 (Small)| Dynamic Quantization |    49.81%      | 38.15s |    4.72MB    |
 | MobileNetv3 (Small) | Static Quantization |    44.18%     | 23.88s |    1.81MB    |
