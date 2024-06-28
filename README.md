@@ -76,6 +76,7 @@ Step 2:
 cd server/docs/examples 
 ```
 Then create a folder containing the model file, config file and class name file. The directory structure is as follows:
+
 <img src="https://github.com/phungo1506/MLOps-Production/blob/main/images/Structure%20folder.png"/>
 
 Step 3:
@@ -83,14 +84,13 @@ Step 3:
 docker run --rm --net=host -v ${PWD}/model_repository:/models  
 nvcr.io/nvidia/tritonserver:23.05-py3 tritonserver --model-repository=/models 
 ```
-``
 
 ## Demo
 Use colab notebook as client to demo <a href="https://colab.research.google.com/drive/1XUKG661hk4xSdLeAIU6ExNpuL3lTj-vG?usp=sharing"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a> 
 
 ## Further Reading
-*[Quantization — PyTorch ](https://pytorch.org/docs/stable/quantization.html)
-*[Knowledge Distillation - Pytorch](https://pytorch.org/tutorials/beginner/knowledge_distillation_tutorial.html)
-*[ONXX - Pytorch](https://pytorch.org/tutorials/beginner/onnx/export_simple_model_to_onnx_tutorial.html)
-*[ONNX - Tutorials](https://github.com/onnx/tutorials)
-*[Architecture Example](https://github.com/maciejbalawejder/Deep-Learning-Collection/tree/main)
+* [Quantization — PyTorch ](https://pytorch.org/docs/stable/quantization.html)
+* [Knowledge Distillation - Pytorch](https://pytorch.org/tutorials/beginner/knowledge_distillation_tutorial.html)
+* [ONXX - Pytorch](https://pytorch.org/tutorials/beginner/onnx/export_simple_model_to_onnx_tutorial.html)
+* [ONNX - Tutorials](https://github.com/onnx/tutorials)
+* [Architecture Example](https://github.com/maciejbalawejder/Deep-Learning-Collection/tree/main)
