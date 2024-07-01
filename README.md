@@ -51,12 +51,12 @@ Training and testing on GPU A100
 | ResNet(50) |     25.5M    |   523.2G    |     54.18%     | 63.63s  |    89.63MB     |
 ## Environments
 
-OS Ubuntu 20.04 (WSL2)
-Python 3.10
-Triton Inference Server 2.34.0
-ONNX 1.16.1
-ONNX Runtime 1.18.1
-Docker 24.0.6
+* OS Ubuntu 20.04 (WSL2)
+* Python 3.10
+* Triton Inference Server 2.34.0
+* ONNX 1.16.1
+* ONNX Runtime 1.18.1
+* Docker 24.0.6
 
 ### Installation
 ```
