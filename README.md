@@ -47,19 +47,18 @@ Training and testing on GPU A100
 ### ONNX model
 | Model | #Params | FLOPs | Accuracy | Time Inference | Model Size |
 |:---------------|:----:|:---:|:--:|:--:|:--:|
-| MobileNetv3 (Samll) |     1.9M     |   7.5G    |     49.96%     | 3.27s  |    5.78MB     |
-
-<!-- ## Environments
+| MobileNetv3 (Samll) |     1.9M     |   7.5G    |     49.96%     | 3.97s  |    5.78MB     |
+| ResNet(50) |     25.5M    |   523.2G    |     54.18%     | 63.63s  |    89.63MB     |
+## Environments
 
 OS Ubuntu 20.04 (WSL2)
-Python 3.8.10
+Python 3.10
 Triton Inference Server 2.34.0
-Pillow 9.3.0
-ONNX 1.15.0
-ONNX Runtime 1.16.0
-Docker 24.0.6 -->
+ONNX 1.16.1
+ONNX Runtime 1.18.1
+Docker 24.0.6
 
-## Installation
+### Installation
 ```
 pip install -r requirements.txt
 ```
